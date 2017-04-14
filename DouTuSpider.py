@@ -1,10 +1,12 @@
 # 斗图网表情包 Spider
 # 在原有基础上加上一个多线程：threading 库是 Python 原生多线程处理与控制库
+# 亲测抓取一个页面完整的所有图片需要 2 秒左右，比未添加超线程的满了5倍，提速明显
 
 import os
 import re
 import requests
 import threading
+import datetime
 from bs4 import BeautifulSoup
 from Download import dl
 
@@ -63,9 +65,11 @@ class DouTu:
         soup = BeautifulSoup(html, 'lxml')
         max_span = int(soup.find('ul', class_='pagination').find_all('a')[-2].text)
         for page in range(1, max_span + 1):
+            start = datetime.datetime.now()
             href = self.start_url + 'article/list/?page=' + str(page)
             soup = BeautifulSoup(dl.GetHtml(href), 'lxml').find_all('a', class_='list-group-item')
             self.getDetail(soup)
+            print(datetime.datetime.now()-start)
 
 
 if __name__ == '__main__':
