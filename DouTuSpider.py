@@ -27,8 +27,11 @@ class DouTu:
             }
 
     def getImgs(self, href, dir_name):
-        os.mkdir('/Users/yton/Documents/斗图/' + dir_name)
-        os.chdir('/Users/yton/Documents/斗图/' + dir_name)
+        if os.path.exists('/Users/yton/Documents/斗图/' + dir_name):
+            pass
+        else:
+            os.mkdir('/Users/yton/Documents/斗图/' + dir_name)
+            os.chdir('/Users/yton/Documents/斗图/' + dir_name)
         soup = BeautifulSoup(dl.GetHtml(href), 'lxml').find_all('div', class_='artile_des')
         img_href_list = [self.getImgHref(item) for item in soup]
         img_href_list.pop()
