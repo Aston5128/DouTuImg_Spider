@@ -1,81 +1,52 @@
-# 斗图网表情包 Spider
+# 抓取斗图网的表情包
 # 在原有基础上加上一个多线程：threading 库是 Python 原生多线程处理与控制库
 # 亲测抓取一个页面完整的所有图片需要 2 秒左右，比未添加超线程的满了5倍，提速明显
+# 继续改进，使用 lxml 的 etree 代替 BeautifulSoup 进一步提升速度
 
 import os
-import re
 import requests
 import threading
-import datetime
-from bs4 import BeautifulSoup
+from lxml import etree
 from Download import dl
 
 
-class DouTu:
-    def __init__(self):
-        self.start_url = 'http://www.doutula.com/'
-        os.mkdir('/Users/yton/Documents/斗图')
-        os.chdir('/Users/yton/Documents/斗图')
+def get():
+    """创建主文件夹，开始爬取"""
+    os.mkdir('/Users/yton/Documents/斗图')
+    os.chdir('/Users/yton/Documents/斗图')
+    html = etree.HTML(dl.GetHtml('https://www.doutula.com/'))  # 用 etree 分析 index
+    max_span = int(html.xpath('//li')[16].xpath('string(.)'))  # 获取最大页的页码
+    for page in range(1, max_span+1):
+        url = 'https://www.doutula.com/article/list/?page=' + str(page)
+        print('[正在抓取]。。。url: ' + url)
+        html = etree.HTML(dl.GetHtml(url))
+        getDetail(html)
 
-    @staticmethod
-    def getImgHref(item):
-        img_href_n = item.find('img')
-        if img_href_n:
-            return {
-                'img_name': img_href_n['alt'],
-                'img_href': re.findall("this.src='(.*?)'", img_href_n['onerror'])[0]
-            }
-
-    def getImgs(self, href, dir_name):
-        if os.path.exists('/Users/yton/Documents/斗图/' + dir_name):
-            pass
+def getDetail(html):
+    """获取子页面的数据"""
+    href_list = [str(item.xpath('@href')[0]) for item in html.xpath('//a[@class="list-group-item"]')]
+    for url in href_list:
+        html = etree.HTML(dl.GetHtml(url))
+        dir_name = str(html.xpath('//li[@class="list-group-item"]//h3//blockquote//a')[0].xpath('string(.)'))
+        print('[正在抓取]。。。' + dir_name)
+        if os.path.exists('/Users/yton/Documents/斗图/' + dir_name): pass
         else:
             os.mkdir('/Users/yton/Documents/斗图/' + dir_name)
             os.chdir('/Users/yton/Documents/斗图/' + dir_name)
-        soup = BeautifulSoup(dl.GetHtml(href), 'lxml').find_all('div', class_='artile_des')
-        img_href_list = [self.getImgHref(item) for item in soup]
-        img_href_list.pop()
-        self.startSaveImgs(img_href_list)
+        getImgs(html)
 
-    def startSaveImgs(self, img_href_list):
-        for detail_img in img_href_list:
-            img_href = detail_img['img_href']
-            img_name = detail_img['img_name']
-            # threanding 是多线程处理控制，Thread 是多线程，target 是在线程启动后执行的，args 表示调用 target 的参数列表
-            th = threading.Thread(target=self.saveDetailImg, args=(img_name, img_href))
-            # 启动线程
-            th.start()
+def getImgs(html):
+    """获取图片的名字和"""
+    img_n = html.xpath('//div[@class="artile_des"]//table//a//img')
+    img_dict_list = [{'img_name': str(item.xpath('@alt')[0]), 'img_href': str(item.xpath('@src')[0])} for item in img_n]
+    for img_dict in img_dict_list:
+        threading.Thread(target=storeImg, args=(img_dict, )).start()  # 多线程
 
-    @staticmethod
-    def saveDetailImg(img_name, img_href):
-        print('[正在抓取]。。。' + img_name + ' ' + img_href)
-        # requests.get().text 返回的 Unicode 数据类型，用于获取源码和文本
-        # requests.get().content 返回的是二进制数据类型，用于获取文件和图片
-        img_content = requests.get(img_href).content
-        img_output = open(img_name + '.jpg', 'wb')
-        img_output.write(img_content)
-        img_output.close()
-
-    def getDetail(self, soup):
-        for item in soup:
-            href = item['href']
-            dir_name = item.find('h4').text
-            print('[正在抓取]。。。' + dir_name)
-            self.getImgs(href, dir_name)
-
-    def get(self):
-        html = dl.GetHtml(self.start_url)
-        soup = BeautifulSoup(html, 'lxml')
-        max_span = int(soup.find('ul', class_='pagination').find_all('a')[-2].text)
-        for page in range(1, max_span + 1):
-            start = datetime.datetime.now()
-            href = self.start_url + 'article/list/?page=' + str(page)
-            soup = BeautifulSoup(dl.GetHtml(href), 'lxml').find_all('a', class_='list-group-item')
-            self.getDetail(soup)
-            print(datetime.datetime.now()-start)
-
+def storeImg(img_dict):
+    """保存图片"""
+    print('[正在抓取]。。。' + img_dict['img_name'])
+    with open(img_dict['img_name'] + '.jpg', 'wb') as p:
+        p.write(requests.get('http:' + img_dict['img_href']).content)
 
 if __name__ == '__main__':
-    DouTu().get()
-else:
-    doutu = DouTu()
+    get()
